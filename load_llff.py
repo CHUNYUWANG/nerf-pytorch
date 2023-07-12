@@ -5,6 +5,10 @@ import os, imageio
 ########## Slightly modified version of LLFF data loading code 
 ##########  see https://github.com/Fyusion/LLFF for original
 
+# resize images based on either factors, resolutions
+# save resized images to new directories
+# this will be used by _load_data(...)
+
 def _minify(basedir, factors=[], resolutions=[]):
     needtoload = False
     for r in factors:
@@ -60,9 +64,18 @@ def _minify(basedir, factors=[], resolutions=[]):
         
         
 def _load_data(basedir, factor=None, width=None, height=None, load_imgs=True):
-    
+
+    # poses_arr.shape = [image_number, 17]
     poses_arr = np.load(os.path.join(basedir, 'poses_bounds.npy'))
+
+    # [r11, r12, r13, t1, H]
+    # [r21, r22, r23, t2, W]
+    # [r31, r32, r33, t3, f]
+    # poses.shape = (3, 5, image_number)
     poses = poses_arr[:, :-2].reshape([-1, 3, 5]).transpose([1,2,0])
+
+    # bds.shape = [2, image_number]
+    # bounds 是该相机视角下场景点离相机中心最近(near)和最远(far)的距离，所以near/far肯定是大于0的。
     bds = poses_arr[:, -2:].transpose([1,0])
     
     img0 = [os.path.join(basedir, 'images', f) for f in sorted(os.listdir(os.path.join(basedir, 'images'))) \
@@ -70,7 +83,8 @@ def _load_data(basedir, factor=None, width=None, height=None, load_imgs=True):
     sh = imageio.imread(img0).shape
     
     sfx = ''
-    
+
+    # resize image without changing the aspect ratio
     if factor is not None:
         sfx = '_{}'.format(factor)
         _minify(basedir, factors=[factor])
@@ -99,7 +113,11 @@ def _load_data(basedir, factor=None, width=None, height=None, load_imgs=True):
         return
     
     sh = imageio.imread(imgfiles[0]).shape
+    
+    # update image size (H, W) in poses
     poses[:2, 4, :] = np.array(sh[:2]).reshape([2, 1])
+
+    # update focal length according to resize factor
     poses[2, 4, :] = poses[2, 4, :] * 1./factor
     
     if not load_imgs:
@@ -245,7 +263,12 @@ def load_llff_data(basedir, factor=8, recenter=True, bd_factor=.75, spherify=Fal
 
     poses, bds, imgs = _load_data(basedir, factor=factor) # factor=8 downsamples original imgs by 8x
     print('Loaded', basedir, bds.min(), bds.max())
+
     
+    # [r11, r12, r13, t1, H]
+    # [r21, r22, r23, t2, W]
+    # [r31, r32, r33, t3, f]
+    # poses.shape = (image_number, 3, 5)    
     # Correct rotation matrix ordering and move variable dim to axis 0
     poses = np.concatenate([poses[:, 1:2, :], -poses[:, 0:1, :], poses[:, 2:, :]], 1)
     poses = np.moveaxis(poses, -1, 0).astype(np.float32)
@@ -254,6 +277,10 @@ def load_llff_data(basedir, factor=8, recenter=True, bd_factor=.75, spherify=Fal
     bds = np.moveaxis(bds, -1, 0).astype(np.float32)
     
     # Rescale if bd_factor is provided
+    # makes near bound is 1
+    # scale the translation parameter
+    # https://github.com/bmild/nerf/issues/34
+    
     sc = 1. if bd_factor is None else 1./(bds.min() * bd_factor)
     poses[:,:3,3] *= sc
     bds *= sc
