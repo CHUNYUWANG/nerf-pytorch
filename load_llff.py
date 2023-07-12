@@ -268,7 +268,7 @@ def load_llff_data(basedir, factor=8, recenter=True, bd_factor=.75, spherify=Fal
     # [r11, r12, r13, t1, H]
     # [r21, r22, r23, t2, W]
     # [r31, r32, r33, t3, f]
-    # poses.shape = (image_number, 3, 5)    
+    # poses.shape = (3, 5, image_number)    
     # Correct rotation matrix ordering and move variable dim to axis 0
     poses = np.concatenate([poses[:, 1:2, :], -poses[:, 0:1, :], poses[:, 2:, :]], 1)
     poses = np.moveaxis(poses, -1, 0).astype(np.float32)
