@@ -277,7 +277,7 @@ def load_llff_data(basedir, factor=8, recenter=True, bd_factor=.75, spherify=Fal
     bds = np.moveaxis(bds, -1, 0).astype(np.float32)
     
     # Rescale if bd_factor is provided
-    # makes near bound is 1
+    # when bd_factor is 1, it makes the nearest bound among all images is 1
     # scale the translation parameter
     # https://github.com/bmild/nerf/issues/34
     
